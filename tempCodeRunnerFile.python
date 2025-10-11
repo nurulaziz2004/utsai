@@ -1,0 +1,108 @@
+# ===============================================
+# Import libraries
+# ===============================================
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.tree import DecisionTreeClassifier, plot_tree
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.feature_selection import RFE
+from imblearn.over_sampling import SMOTE   # <--- SMOTE
+import matplotlib.pyplot as plt
+
+# ===============================================
+# Load dataset
+# ===============================================
+url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
+column_names = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 
+                'BMI', 'DiabetesPedigreeFunction', 'Age', 'Outcome']
+df = pd.read_csv(url, names=column_names)
+
+# ===============================================
+# Pisahkan fitur dan target
+# ===============================================
+X = df.drop('Outcome', axis=1)
+y = df['Outcome']
+
+# ===============================================
+# RFE untuk seleksi fitur terbaik
+# ===============================================
+base_model = DecisionTreeClassifier(random_state=42)
+rfe = RFE(estimator=base_model, n_features_to_select=5)
+rfe.fit(X, y)
+
+selected_features = X.columns[rfe.support_]
+print("\n=== Fitur Terpilih oleh RFE ===")
+print(selected_features)
+
+X_selected = X[selected_features]
+
+# ===============================================
+# Split data sebelum SMOTE
+# ===============================================
+X_train, X_test, y_train, y_test = train_test_split(
+    X_selected, y, test_size=0.3, random_state=42, stratify=y
+)
+
+print("\nDistribusi sebelum SMOTE:")
+print(y_train.value_counts())
+
+# ===============================================
+# Terapkan SMOTE pada data latih
+# ===============================================
+smote = SMOTE(random_state=42)
+X_train_smote, y_train_smote = smote.fit_resample(X_train, y_train)
+
+print("\nDistribusi setelah SMOTE:")
+print(y_train_smote.value_counts())
+
+# ===============================================
+# Decision Tree dengan Pre-Pruning
+# ===============================================
+model = DecisionTreeClassifier(
+    random_state=42,
+    max_depth=4,
+    min_samples_split=5,
+    min_samples_leaf=3
+)
+model.fit(X_train_smote, y_train_smote)
+
+# ===============================================
+# Evaluasi Model
+# ===============================================
+y_pred = model.predict(X_test)
+
+print("\n=== HASIL EVALUASI MODEL (SETELAH SMOTE) ===")
+print(f"Akurasi: {accuracy_score(y_test, y_pred):.4f}")
+print("Confusion Matrix:")
+print(confusion_matrix(y_test, y_pred))
+print("Classification Report:")
+print(classification_report(y_test, y_pred))
+
+# ===============================================
+# Visualisasi Pohon Keputusan
+# ===============================================
+plt.figure(figsize=(15, 10))
+plot_tree(model, filled=True, feature_names=selected_features, class_names=['No Diabetes', 'Diabetes'])
+plt.title("Decision Tree (RFE + SMOTE + Max Depth Pruning)")
+plt.show()
+
+# ===============================================
+# Visualisasi Feature Importance
+# ===============================================
+importances = model.feature_importances_
+indices = np.argsort(importances)[::-1]
+
+plt.figure(figsize=(8, 5))
+plt.bar(range(len(selected_features)), importances[indices])
+plt.xticks(range(len(selected_features)), selected_features[indices], rotation=45)
+plt.title("Feature Importance Setelah RFE + SMOTE + Pruning")
+plt.xlabel("Fitur")
+plt.ylabel("Kepentingan")
+plt.tight_layout()
+plt.show()
+
+# Cetak ranking fitur
+print("\n=== Ranking Feature Importance ===")
+for i in range(len(selected_features)):
+    print(f"{i+1}. {selected_features[indices[i]]}: {importances[indices[i]]:.4f}")
