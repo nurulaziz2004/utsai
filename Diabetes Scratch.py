@@ -28,15 +28,18 @@ class Node:
 
 
 class DecisionTree:
-    def __init__(self, min_samples_split=2, max_depth=100, n_feats=None):
+    def __init__(self, min_samples_split=2, max_depth=5, n_feats=None):
         self.min_samples_split = min_samples_split
         self.max_depth = max_depth
         self.n_feats = n_feats
         self.root = None
+        self.feature_importances_ = None  # menyimpan importance fitur
 
     def fit(self, X, y):
         self.n_feats = X.shape[1] if not self.n_feats else min(self.n_feats, X.shape[1])
         self.root = self._grow_tree(X, y)
+        # Hitung importance sederhana berdasarkan frekuensi fitur digunakan
+        self.feature_importances_ = self._compute_feature_importance(X)
 
     def predict(self, X):
         return np.array([self._traverse_tree(x, self.root) for x in X])
@@ -54,6 +57,9 @@ class DecisionTree:
 
         # Pilih split terbaik
         best_feat, best_thresh = self._best_criteria(X, y, feat_idxs)
+        if best_feat is None:
+            leaf_value = self._most_common_label(y)
+            return Node(value=leaf_value)
 
         left_idxs, right_idxs = self._split(X[:, best_feat], best_thresh)
         left = self._grow_tree(X[left_idxs, :], y[left_idxs], depth + 1)
@@ -68,32 +74,24 @@ class DecisionTree:
             thresholds = np.unique(X_column)
             for threshold in thresholds:
                 gain = self._information_gain(y, X_column, threshold)
-
                 if gain > best_gain:
                     best_gain = gain
                     split_idx = feat_idx
                     split_thresh = threshold
-
         return split_idx, split_thresh
 
     def _information_gain(self, y, X_column, split_thresh):
-        # impurity parent
         parent_loss = gini_impurity(y)
-
-        # generate split
         left_idxs, right_idxs = self._split(X_column, split_thresh)
         if len(left_idxs) == 0 or len(right_idxs) == 0:
             return 0
 
-        # weighted average impurity
         n = len(y)
         n_l, n_r = len(left_idxs), len(right_idxs)
         g_l, g_r = gini_impurity(y[left_idxs]), gini_impurity(y[right_idxs])
         child_loss = (n_l / n) * g_l + (n_r / n) * g_r
 
-        # information gain (penurunan impurity)
-        ig = parent_loss - child_loss
-        return ig
+        return parent_loss - child_loss
 
     def _split(self, X_column, split_thresh):
         left_idxs = np.argwhere(X_column <= split_thresh).flatten()
@@ -112,30 +110,74 @@ class DecisionTree:
         most_common = counter.most_common(1)[0][0]
         return most_common
 
+    def _compute_feature_importance(self, X):
+        """Hitung importance fitur berdasarkan frekuensi fitur digunakan"""
+        importance = np.zeros(X.shape[1])
+        self._traverse_and_count(self.root, importance)
+        if importance.sum() > 0:
+            importance = importance / importance.sum()
+        return importance
+
+    def _traverse_and_count(self, node, importance):
+        if node is None or node.is_leaf_node():
+            return
+        importance[node.feature] += 1
+        self._traverse_and_count(node.left, importance)
+        self._traverse_and_count(node.right, importance)
+
 
 # ==============================================
-# MAIN PROGRAM: Training dataset
+# FUNGSI RFE (Recursive Feature Elimination)
+# ==============================================
+def recursive_feature_elimination(X, y, n_features_to_keep, feature_names):
+    """Hapus fitur paling tidak penting sampai tersisa n_features_to_keep"""
+    features = np.arange(X.shape[1])
+    feature_names = np.array(feature_names)
+
+    while len(features) > n_features_to_keep:
+        clf = DecisionTree(max_depth=5)
+        clf.fit(X[:, features], y)
+        importances = clf.feature_importances_
+
+        if importances.sum() == 0:
+            print("⚠️ Semua fitur sama pentingnya, proses dihentikan.")
+            break
+
+        least_important = np.argmin(importances)
+        print(f"🔥 Menghapus fitur '{feature_names[least_important]}' (indeks {features[least_important]}), sisa {len(features)-1} fitur.")
+        features = np.delete(features, least_important)
+        feature_names = np.delete(feature_names, least_important)
+
+    return features, feature_names
+
+
+# ==============================================
+# MAIN PROGRAM
 # ==============================================
 if __name__ == "__main__":
     from sklearn.model_selection import train_test_split
     from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 
-    # Load dataset dari file CSV yang kamu upload
-    df = pd.read_csv("D:\Semester 7\AI\PAK ANAN\datadt.csv")
+    # Load dataset
+    df = pd.read_csv(r"D:\Semester 7\AI\PAK ANAN\datadt.csv")
     print("Data sample:")
     print(df.head())
 
     # Pisahkan fitur dan target (asumsi kolom terakhir = target)
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values.astype(int)
+    feature_names = df.columns[:-1]  # nama kolom fitur
 
-    selected_features = recursive_feature_elimination(X, y, n_features_to_keep=5)
-    print("Fitur terpilih:", selected_features)
+    # Jalankan RFE untuk memilih 5 fitur terbaik
+    selected_features, selected_names = recursive_feature_elimination(X, y, n_features_to_keep=5, feature_names=feature_names)
+    print("\n✅ Fitur terpilih (berdasarkan nama):", list(selected_names))
 
-    # Split train/test
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+    # Split data menggunakan fitur terpilih
+    X_train, X_test, y_train, y_test = train_test_split(
+        X[:, selected_features], y, test_size=0.3, random_state=42
+    )
 
-    # Buat model decision tree (pakai Gini)
+    # Buat model Decision Tree
     clf = DecisionTree(max_depth=5)
     clf.fit(X_train, y_train)
 
