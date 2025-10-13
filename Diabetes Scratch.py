@@ -114,7 +114,7 @@ class DecisionTree:
 
 
 # ==============================================
-# MAIN PROGRAM: Training dengan dataset kamu
+# MAIN PROGRAM: Training dataset
 # ==============================================
 if __name__ == "__main__":
     from sklearn.model_selection import train_test_split
@@ -128,6 +128,9 @@ if __name__ == "__main__":
     # Pisahkan fitur dan target (asumsi kolom terakhir = target)
     X = df.iloc[:, :-1].values
     y = df.iloc[:, -1].values.astype(int)
+
+    selected_features = recursive_feature_elimination(X, y, n_features_to_keep=5)
+    print("Fitur terpilih:", selected_features)
 
     # Split train/test
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)

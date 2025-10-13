@@ -13,8 +13,7 @@ import matplotlib.pyplot as plt
 # Load dataset
 # ===============================================
 url = "https://raw.githubusercontent.com/jbrownlee/Datasets/master/pima-indians-diabetes.data.csv"
-column_names = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 
-                'BMI', 'DiabetesPedigreeFunction', 'Age', 'Outcome']
+column_names = ['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age', 'Outcome']
 df = pd.read_csv(url, names=column_names)
 
 # ===============================================
@@ -69,7 +68,7 @@ print(classification_report(y_test, y_pred))
 # ===============================================
 # Visualisasi Pohon Keputusan
 # ===============================================
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(75, 50))
 plot_tree(model, filled=True, feature_names=selected_features, class_names=['No Diabetes', 'Diabetes'])
 plt.title("Decision Tree dengan RFE dan Max Depth Pruning")
 plt.show()
@@ -80,7 +79,7 @@ plt.show()
 importances = model.feature_importances_
 indices = np.argsort(importances)[::-1]
 
-plt.figure(figsize=(15, 10))
+plt.figure(figsize=(8, 10))
 plt.bar(range(len(selected_features)), importances[indices])
 plt.xticks(range(len(selected_features)), selected_features[indices], rotation=45)
 plt.title("Feature Importance Setelah RFE dan Max Depth Pruning")
